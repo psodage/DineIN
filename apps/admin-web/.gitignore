@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+.env
+.env.local
+.vite/
+dev-dist/
+
+# Legacy Expo (optional local artifacts)
+.expo/
+expo-env.d.ts

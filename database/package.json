@@ -1,0 +1,27 @@
+{
+  "name": "@dinein/database",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Unified Prisma schema, migrations, and seed scripts for DineIN",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "prisma db seed",
+    "studio": "prisma studio",
+    "push": "prisma db push",
+    "reset": "prisma migrate reset"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.8.0"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "node prisma/seed.js"
+  }
+}

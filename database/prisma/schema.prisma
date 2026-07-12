@@ -1,0 +1,685 @@
+// ============================================================
+// DineIN — Unified Prisma Schema
+// Merged from Admin + Member schemas on Prisma 7.x
+// ============================================================
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─── Core Auth ──────────────────────────────────────────────
+
+model User {
+  id                 String         @id @default(uuid()) @map("_id")
+  email              String         @unique
+  password           String
+  role               String         @default("admin") // "admin" | "member" | "manager"
+  activeSessionToken String?
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  student        Student?
+  manager        Manager?
+  refreshTokens  RefreshToken[]
+  deviceTokens   DeviceToken[]
+  activityLogs   ActivityLog[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @map("_id")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("refresh_tokens")
+}
+
+model Otp {
+  id        String   @id @default(uuid()) @map("_id")
+  email     String
+  hashedOtp String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("otps")
+}
+
+model PendingRegistration {
+  id            String   @id @default(uuid()) @map("_id")
+  name          String
+  phone         String
+  roomOwnerName String
+  mealPlan      String   @default("Lunch")
+  email         String   @unique
+  passwordHash  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("pending_registrations")
+}
+
+// ─── Students / Members ─────────────────────────────────────
+
+model Student {
+  id              String       @id @default(uuid()) @map("_id")
+  userId          String?      @unique
+  user            User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  nameMr          String       @default("")
+  roomOwnerName   String       @default("")
+  roomOwnerNameMr String       @default("")
+  rollNumber      String       @default("")
+  phone           String       @default("")
+  joiningDate     DateTime     @default(now())
+  status          String       @default("Active") // "Active" | "Inactive"
+  statusMr        String       @default("")
+  mealPlan        String       @default("Lunch") // "Lunch" | "Dinner" | "Both"
+  mealPlanMr      String       @default("")
+  roomId          String?
+  room            Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  academicYearId  String?
+  academicYear    AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  semesterId      String?
+  semester        Semester?    @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Relations
+  attendance                    Attendance[]
+  mealAttendance                MealAttendance[]
+  leaveRequests                 LeaveRequest[]
+  leaveStats                    LeaveStat[]
+  monthlyBills                  MonthlyBill[]
+  payments                      Payment[]
+  snackOrders                   SnackOrder[]              @relation("StudentSnackOrders")
+  pollVotes                     PollVote[]
+  complaints                    Complaint[]
+  userNotifications             UserNotification[]
+  billSplitRequestsCreated      BillSplitRequest[]        @relation("CreatedByStudent")
+  billSplitAllocations          BillSplitAllocation[]
+  billSplitRequestsParticipated BillSplitRequest[]        @relation("BillSplitParticipants")
+
+  @@index([userId])
+  @@index([status])
+  @@index([rollNumber])
+  @@map("members")
+}
+
+// ─── Organization ───────────────────────────────────────────
+
+model Mess {
+  id          String    @id @default(uuid()) @map("_id")
+  name        String
+  description String?
+  address     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  hostels     Hostel[]
+  managers    Manager[]
+  meals       Meal[]
+
+  @@map("mess")
+}
+
+model Hostel {
+  id        String   @id @default(uuid()) @map("_id")
+  name      String
+  address   String?
+  messId    String?
+  mess      Mess?    @relation(fields: [messId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rooms     Room[]
+
+  @@map("hostels")
+}
+
+model Room {
+  id         String    @id @default(uuid()) @map("_id")
+  roomNumber String
+  hostelId   String
+  hostel     Hostel    @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  students   Student[]
+
+  @@map("rooms")
+}
+
+model Manager {
+  id        String       @id @default(uuid()) @map("_id")
+  userId    String       @unique
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String?
+  messId    String?
+  mess      Mess?        @relation(fields: [messId], references: [id], onDelete: SetNull)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  notifications Notification[]
+  foodMenus     FoodMenu[]
+
+  @@map("managers")
+}
+
+model AcademicYear {
+  id        String    @id @default(uuid()) @map("_id")
+  name      String    @unique
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  students  Student[]
+
+  @@map("academic_years")
+}
+
+model Semester {
+  id        String    @id @default(uuid()) @map("_id")
+  name      String
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  students  Student[]
+
+  @@map("semesters")
+}
+
+// ─── Meals & Menu ───────────────────────────────────────────
+
+model Meal {
+  id             String           @id @default(uuid()) @map("_id")
+  name           String // "Breakfast", "Lunch", "Dinner"
+  time           String?
+  messId         String?
+  mess           Mess?            @relation(fields: [messId], references: [id], onDelete: SetNull)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  attendance     Attendance[]
+  mealAttendance MealAttendance[]
+
+  @@map("meals")
+}
+
+model MealType {
+  id         String    @id @default(uuid()) @map("_id")
+  mealPlan   String    @unique
+  mealPlanMr String    @default("")
+  price      Float
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("meal_types")
+}
+
+model FoodMenu {
+  id                String   @id @default(uuid()) @map("_id")
+  date              DateTime @unique
+  pollOptionKey     String   @default("")
+  pollOptionLabel   String   @default("")
+  pollOptionLabelMr String   @default("")
+  breakfast         String   @default("")
+  lunch             String   @default("")
+  lunchMr           String   @default("")
+  dinner            String   @default("")
+  dinnerMr          String   @default("")
+  managerId         String?
+  manager           Manager? @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("food_menus")
+}
+
+// ─── Attendance ─────────────────────────────────────────────
+
+model Attendance {
+  id        String   @id @default(uuid()) @map("_id")
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mealId    String
+  meal      Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  date      DateTime
+  time      DateTime?
+  qrScan    String?
+  status    String // "Present" | "Absent" | "Leave"
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, mealId, date])
+  @@map("attendance")
+}
+
+model MealAttendance {
+  id        String   @id @default(uuid()) @map("_id")
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mealId    String
+  meal      Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  date      DateTime
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("meal_attendance")
+}
+
+// ─── Leave ──────────────────────────────────────────────────
+
+model LeaveRequest {
+  id               String                     @id @default(uuid()) @map("_id")
+  studentId        String
+  student          Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type             String                     @default("Leave") // "Leave" | "Activation"
+  startDate        DateTime?
+  endDate          DateTime?
+  status           String                     @default("Pending") // "Pending" | "Approved" | "Rejected"
+  approvedBy       String?
+  rejectedBy       String?
+  reason           String?
+  reasonMr         String?                    @default("")
+  billingApplied   Boolean                    @default(false)
+  billingDaysTotal Float                      @default(0)
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+  @@index([billingApplied])
+  @@map("leave_requests")
+}
+
+model LeaveStat {
+  id                     String   @id @default(uuid()) @map("_id")
+  studentId              String
+  student                Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  month                  DateTime
+  inactiveDays           Float    @default(0)
+  chargeableLeaveDayKeys String[] @default([])
+  shortLeaveDayKeys      String[] @default([])
+  lastLeaveDate          DateTime?
+  currentStreak          Float    @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([studentId, month])
+  @@map("leave_stats")
+}
+
+// ─── Billing & Payments ─────────────────────────────────────
+
+model MonthlyBill {
+  id              String      @id @default(uuid()) @map("_id")
+  studentId       String
+  student         Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  userId          String?
+  month           DateTime
+  due             Float       @default(0)
+  collected       Float       @default(0)
+  status          String      @default("Pending") // "Pending" | "Paid" | "Partially Paid" | "Cancelled"
+  lastChargedDate DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  billItems       BillItem[]
+  payments        Payment[]
+  lateFees        LateFee[]
+  discounts       Discount[]
+
+  @@unique([studentId, month])
+  @@map("monthly_bills")
+}
+
+model BillItem {
+  id            String      @id @default(uuid()) @map("_id")
+  monthlyBillId String
+  monthlyBill   MonthlyBill @relation(fields: [monthlyBillId], references: [id], onDelete: Cascade)
+  name          String
+  amount        Float
+  category      String      @default("Meal") // "Meal" | "Snack" | "ExpenseShare" | "Other"
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("bill_items")
+}
+
+model Payment {
+  id               String       @id @default(uuid()) @map("_id")
+  studentId        String
+  student          Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  monthlyBillId    String?
+  monthlyBill      MonthlyBill? @relation(fields: [monthlyBillId], references: [id], onDelete: SetNull)
+  month            DateTime
+  paidAmount       Float        @default(0)
+  paymentMethod    String       @default("Cash") // "Cash" | "UPI" | "Bank Transfer"
+  upiTransactionId String       @default("")
+  date             DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([studentId])
+  @@index([month])
+  @@map("payments")
+}
+
+model LateFee {
+  id            String      @id @default(uuid()) @map("_id")
+  monthlyBillId String
+  monthlyBill   MonthlyBill @relation(fields: [monthlyBillId], references: [id], onDelete: Cascade)
+  amount        Float
+  status        String      @default("Pending") // "Pending" | "Paid"
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("late_fees")
+}
+
+model Discount {
+  id            String      @id @default(uuid()) @map("_id")
+  monthlyBillId String
+  monthlyBill   MonthlyBill @relation(fields: [monthlyBillId], references: [id], onDelete: Cascade)
+  amount        Float
+  reason        String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("discounts")
+}
+
+model MonthlyBillEmailLog {
+  id        String   @id @default(uuid()) @map("_id")
+  memberId  String
+  monthKey  String
+  to        String
+  total     Float    @default(0)
+  paid      Float    @default(0)
+  due       Float    @default(0)
+  sentAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([memberId, monthKey])
+  @@map("monthly_bill_email_logs")
+}
+
+// ─── Snacks ─────────────────────────────────────────────────
+
+model SnackOrder {
+  id                 String            @id @default(uuid()) @map("_id")
+  studentId          String?
+  student            Student?          @relation("StudentSnackOrders", fields: [studentId], references: [id], onDelete: Cascade)
+  customerName       String?           @default("")
+  customerNameMr     String?           @default("")
+  snackId            String?
+  snackProduct       SnackProduct?     @relation(fields: [snackId], references: [id], onDelete: SetNull)
+  quantity           Int               @default(1)
+  chargedAmount      Float?
+  date               DateTime          @default(now())
+  isOutsideCustomer  Boolean           @default(false)
+  billSplitRequestId String?
+  billSplitRequest   BillSplitRequest? @relation(fields: [billSplitRequestId], references: [id], onDelete: SetNull)
+  commonOrderId      String            @default("")
+  splitMemberIds     String[]          @default([])
+  purchaseReference  String            @default("")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([studentId])
+  @@index([date])
+  @@index([snackId])
+  @@index([billSplitRequestId])
+  @@map("snack_orders")
+}
+
+model SnackProduct {
+  id                    String                    @id @default(uuid()) @map("_id")
+  name                  String
+  nameMr                String                    @default("")
+  price                 Float
+  category              String                    @default("Other") // "Beverage" | "Food" | "Other"
+  availability          Boolean                   @default(true)
+  quantity              Float                     @default(0)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  snackOrders           SnackOrder[]
+  billSplitOrderItems   BillSplitOrderItem[]
+  billSplitAllocations  BillSplitAllocationItem[]
+
+  @@map("snack_products")
+}
+
+// ─── Bill Splitting ─────────────────────────────────────────
+
+model BillSplitRequest {
+  id           String                @id @default(uuid()) @map("_id")
+  createdById  String
+  createdBy    Student               @relation("CreatedByStudent", fields: [createdById], references: [id], onDelete: Cascade)
+  orderDate    DateTime              @default(now())
+  status       String                @default("Active") // "Active" | "Completed" | "Failed"
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  orderItems   BillSplitOrderItem[]
+  participants Student[]             @relation("BillSplitParticipants")
+  allocations  BillSplitAllocation[]
+  snackOrders  SnackOrder[]
+
+  @@map("bill_split_requests")
+}
+
+model BillSplitOrderItem {
+  id                 String           @id @default(uuid()) @map("_id")
+  billSplitRequestId String
+  billSplitRequest   BillSplitRequest @relation(fields: [billSplitRequestId], references: [id], onDelete: Cascade)
+  snackId            String
+  snackProduct       SnackProduct     @relation(fields: [snackId], references: [id])
+  quantity           Float
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@map("bill_split_order_items")
+}
+
+model BillSplitAllocation {
+  id                 String                    @id @default(uuid()) @map("_id")
+  billSplitRequestId String
+  billSplitRequest   BillSplitRequest          @relation(fields: [billSplitRequestId], references: [id], onDelete: Cascade)
+  studentId          String
+  student            Student                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  allocatedAmount    Float                     @default(0)
+  status             String                    @default("Pending") // "Pending" | "Approved" | "Rejected"
+  approvedAt         DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  items              BillSplitAllocationItem[]
+
+  @@unique([billSplitRequestId, studentId])
+  @@map("bill_split_allocations")
+}
+
+model BillSplitAllocationItem {
+  id                    String              @id @default(uuid()) @map("_id")
+  billSplitAllocationId String
+  billSplitAllocation   BillSplitAllocation @relation(fields: [billSplitAllocationId], references: [id], onDelete: Cascade)
+  snackId               String
+  snackProduct          SnackProduct        @relation(fields: [snackId], references: [id])
+  quantity              Float
+  unitPrice             Float               @default(0)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@map("bill_split_allocation_items")
+}
+
+// ─── Complaints ─────────────────────────────────────────────
+
+model Complaint {
+  id          String   @id @default(uuid()) @map("_id")
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  status      String   @default("Pending") // "Pending" | "Resolved" | "Ignored"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("complaints")
+}
+
+// ─── Notifications ──────────────────────────────────────────
+
+model Notification {
+  id                String             @id @default(uuid()) @map("_id")
+  title             String
+  message           String
+  type              String // "Broadcast" | "Personal" | "Scheduled"
+  scheduledAt       DateTime?
+  managerId         String?
+  manager           Manager?           @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  userNotifications UserNotification[]
+
+  @@map("notifications")
+}
+
+model UserNotification {
+  id             String       @id @default(uuid()) @map("_id")
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  isRead         Boolean      @default(false)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([notificationId, studentId])
+  @@map("user_notifications")
+}
+
+// ─── Polls ──────────────────────────────────────────────────
+
+model Poll {
+  id         String       @id @default(uuid()) @map("_id")
+  date       DateTime     @unique
+  question   String       @default("Meal Preference")
+  questionMr String       @default("")
+  expiresAt  DateTime
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  options    PollOption[]
+  votes      PollVote[]
+
+  @@index([date])
+  @@map("polls")
+}
+
+model PollOption {
+  id        String     @id @default(uuid()) @map("_id")
+  pollId    String
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  key       String
+  label     String
+  labelMr   String     @default("")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  votes     PollVote[]
+
+  @@unique([pollId, key])
+  @@map("poll_options")
+}
+
+model PollVote {
+  id        String     @id @default(uuid()) @map("_id")
+  pollId    String
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  votedAt   DateTime   @default(now())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([pollId, studentId])
+  @@map("poll_votes")
+}
+
+// ─── Device & Logging ───────────────────────────────────────
+
+model DeviceToken {
+  id        String   @id @default(uuid()) @map("_id")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String? // "iOS" | "Android" | "Web"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("device_tokens")
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid()) @map("_id")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("activity_logs")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @map("_id")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("audit_logs")
+}
+
+// ─── System ─────────────────────────────────────────────────
+
+model AppSetting {
+  id          String   @id @default(uuid()) @map("_id")
+  key         String   @unique
+  numberValue Float?
+  stringValue String?  @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+model Counter {
+  id        String   @id @default(uuid()) @map("_id")
+  name      String   @unique
+  seq       Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("counters")
+}
